@@ -27,3 +27,7 @@ Thumbs.db
 
 # Jupyter
 .ipynb_checkpoints/
+
+# Case study source files (keep local only)
+*.docx
+/orders_*.csv
