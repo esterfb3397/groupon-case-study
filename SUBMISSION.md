@@ -110,7 +110,72 @@ The output has one row per customer (266 rows) with the following columns:
 
 **Portfolio totals:** $136,580 gross bookings and $73,536 gross profit across 266 customers.
 
-The full query is in `sql/master_customer_table.sql`.
+```sql
+WITH order_with_gaps AS (
+  SELECT
+    user_uuid,
+    order_uuid,
+    operational_view_date,
+    platform,
+    gross_bookings_usd,
+    margin_1_usd,
+    vfm_usd,
+    gross_profit_usd,
+    last_status,
+    LAG(operational_view_date) OVER (
+      PARTITION BY user_uuid
+      ORDER BY operational_view_date, order_uuid  -- order_uuid breaks ties deterministically
+    ) AS prev_order_date,
+    ROW_NUMBER() OVER (
+      PARTITION BY user_uuid
+      ORDER BY operational_view_date, order_uuid
+    ) AS order_seq
+  FROM `project.dataset.orders_merged`
+),
+
+order_classified AS (
+  SELECT
+    *,
+    CASE
+      WHEN order_seq = 1                                                 THEN 'new'
+      WHEN DATE_DIFF(operational_view_date, prev_order_date, DAY) > 365 THEN 'reactivated'
+      ELSE                                                                    'retained'
+    END AS order_type
+  FROM order_with_gaps
+),
+
+platform_ranked AS (
+  SELECT
+    user_uuid,
+    platform,
+    ROW_NUMBER() OVER (
+      PARTITION BY user_uuid
+      ORDER BY COUNT(*) DESC, platform
+    ) AS rn
+  FROM order_classified
+  GROUP BY user_uuid, platform
+)
+
+SELECT
+  oc.user_uuid,
+  MIN(oc.operational_view_date)                                   AS first_order_date,
+  MAX(oc.operational_view_date)                                   AS last_order_date,
+  DATE_TRUNC(MIN(oc.operational_view_date), MONTH)               AS acquisition_cohort,
+  COUNT(oc.order_uuid)                                            AS total_orders,
+  ROUND(SUM(oc.gross_bookings_usd), 2)                           AS total_gross_bookings_usd,
+  ROUND(AVG(oc.gross_bookings_usd), 2)                           AS avg_order_value_usd,
+  ROUND(SUM(oc.margin_1_usd), 2)                                 AS total_margin_1_usd,
+  ROUND(SUM(oc.vfm_usd), 2)                                      AS total_vfm_usd,
+  ROUND(SUM(oc.gross_profit_usd), 2)                             AS total_gross_profit_usd,
+  ROUND(AVG(oc.gross_profit_usd), 2)                             AS avg_gross_profit_per_order_usd,
+  DATE_DIFF(CURRENT_DATE(), MAX(oc.operational_view_date), DAY)  AS days_since_last_order,
+  COUNTIF(oc.order_type = 'reactivated')                         AS reactivation_count,
+  pr.platform                                                     AS primary_platform
+FROM order_classified oc
+LEFT JOIN platform_ranked pr
+  ON oc.user_uuid = pr.user_uuid AND pr.rn = 1
+GROUP BY oc.user_uuid, pr.platform
+```
 
 ---
 
@@ -136,7 +201,73 @@ The business is almost entirely dependent on its existing customer base. New cus
 
 Reactivations at 17% are a healthy sign — lapsed customers are returning — but reactivation cannot substitute for sustained new acquisition. Looking at the full historical trend, the new and reactivated share has typically sat between 10% and 25% per month. The sharp drop in new activations visible in early 2025 warrants investigation: it could reflect seasonality, a reduction in acquisition spend, or simply that the most recent weeks of data are incomplete.
 
-The SQL is in `sql/q1_revenue_mix.sql`.
+```sql
+WITH order_with_gaps AS (
+  SELECT
+    user_uuid,
+    order_uuid,
+    operational_view_date,
+    gross_bookings_usd,
+    LAG(operational_view_date) OVER (
+      PARTITION BY user_uuid
+      ORDER BY operational_view_date, order_uuid
+    ) AS prev_order_date,
+    ROW_NUMBER() OVER (
+      PARTITION BY user_uuid
+      ORDER BY operational_view_date, order_uuid
+    ) AS order_seq
+  FROM `project.dataset.orders_merged`
+),
+
+order_classified AS (
+  SELECT
+    *,
+    CASE
+      WHEN order_seq = 1                                                 THEN 'new'
+      WHEN DATE_DIFF(operational_view_date, prev_order_date, DAY) > 365 THEN 'reactivated'
+      ELSE                                                                    'retained'
+    END AS order_type
+  FROM order_with_gaps
+),
+
+dataset_bounds AS (
+  SELECT
+    MAX(operational_view_date)                          AS max_date,
+    DATE_SUB(MAX(operational_view_date), INTERVAL 6 MONTH) AS cutoff_6m
+  FROM `project.dataset.orders_merged`
+),
+
+-- Last-6-month revenue mix
+last_6m_mix AS (
+  SELECT
+    oc.order_type,
+    ROUND(SUM(oc.gross_bookings_usd), 2)                                       AS gross_bookings_usd,
+    ROUND(100.0 * SUM(oc.gross_bookings_usd) / SUM(SUM(oc.gross_bookings_usd))
+          OVER (), 1)                                                           AS pct_share
+  FROM order_classified oc
+  CROSS JOIN dataset_bounds db
+  WHERE oc.operational_view_date > db.cutoff_6m
+  GROUP BY oc.order_type
+),
+
+-- Monthly mix over full history
+monthly_mix AS (
+  SELECT
+    DATE_TRUNC(operational_view_date, MONTH)                       AS month,
+    order_type,
+    ROUND(SUM(gross_bookings_usd), 2)                              AS gross_bookings_usd,
+    ROUND(100.0 * SUM(gross_bookings_usd) / SUM(SUM(gross_bookings_usd))
+          OVER (PARTITION BY DATE_TRUNC(operational_view_date, MONTH)), 1) AS pct_share
+  FROM order_classified
+  GROUP BY month, order_type
+)
+
+-- Last-6-month mix:
+SELECT * FROM last_6m_mix ORDER BY pct_share DESC;
+
+-- Monthly historical mix (swap SELECT above for this one):
+-- SELECT * FROM monthly_mix ORDER BY month, order_type;
+```
 
 ---
 
@@ -176,7 +307,64 @@ Web customers consistently outperform app customers on every financial metric: 1
 
 If the gap is explained by these factors rather than inherent channel quality, there may still be a case for app investment. The current aggregate data does not make it.
 
-The SQL is in `sql/q2_platform_performance.sql`.
+```sql
+WITH order_classified AS (
+  SELECT
+    user_uuid,
+    order_uuid,
+    operational_view_date,
+    CASE WHEN platform = 'touch' THEN 'web' ELSE platform END AS platform_group,
+    gross_bookings_usd,
+    gross_profit_usd,
+    LAG(operational_view_date) OVER (
+      PARTITION BY user_uuid ORDER BY operational_view_date, order_uuid
+    ) AS prev_order_date,
+    ROW_NUMBER() OVER (
+      PARTITION BY user_uuid ORDER BY operational_view_date, order_uuid
+    ) AS order_seq
+  FROM `project.dataset.orders_merged`
+),
+
+customer_platform AS (
+  SELECT
+    user_uuid,
+    platform_group,
+    COUNT(order_uuid)                  AS orders,
+    ROUND(AVG(gross_bookings_usd), 2)  AS avg_order_value_usd,
+    ROUND(SUM(gross_profit_usd), 2)    AS total_gross_profit_usd
+  FROM order_classified
+  GROUP BY user_uuid, platform_group
+),
+
+platform_summary AS (
+  SELECT
+    platform_group,
+    COUNT(DISTINCT user_uuid)                    AS unique_customers,
+    ROUND(AVG(orders), 2)                        AS avg_orders_per_customer,
+    ROUND(AVG(avg_order_value_usd), 2)           AS avg_order_value_usd,
+    ROUND(AVG(total_gross_profit_usd), 2)        AS avg_gross_profit_per_customer_usd,
+    ROUND(SUM(orders * avg_order_value_usd), 2)  AS total_gross_bookings_usd
+  FROM customer_platform
+  GROUP BY platform_group
+),
+
+yearly_platform_mix AS (
+  SELECT
+    EXTRACT(YEAR FROM operational_view_date)                                   AS year,
+    platform_group,
+    ROUND(SUM(gross_bookings_usd), 2)                                          AS gross_bookings_usd,
+    ROUND(100.0 * SUM(gross_bookings_usd) / SUM(SUM(gross_bookings_usd))
+          OVER (PARTITION BY EXTRACT(YEAR FROM operational_view_date)), 1)     AS pct_share
+  FROM order_classified
+  GROUP BY year, platform_group
+)
+
+-- Platform comparison:
+SELECT * FROM platform_summary ORDER BY platform_group;
+
+-- Yearly app share trend (swap SELECT above for this one):
+-- SELECT * FROM yearly_platform_mix ORDER BY year, platform_group;
+```
 
 ---
 
