@@ -73,13 +73,15 @@ gross_profit_usd    = margin_1_usd + vfm_usd
 | Countries | DE, ES, FR, GB, IT, PL, US |
 | Platforms | app, touch, web |
 
-The cleaning pipeline is in `src/cleaning.py` and validated by 14 automated tests in `tests/test_cleaning.py`, all passing.
+The cleaning pipeline is in `src/cleaning.py` and validated by 14 automated tests in `tests/test_cleaning.py`, all passing. The app includes a before/after table showing the exact 8 rows, their raw `NULL` value, and the inferred country code side by side. The cleaned dataset is available as a direct download from the app.
 
 ---
 
 ## Assignment 2 — SQL Analysis
 
-All queries target **BigQuery standard SQL** and are in the `sql/` folder. They are executed locally via DuckDB; syntax adaptations are noted as comments in `src/analysis.py`.
+All queries target **BigQuery standard SQL** and are in the `sql/` folder. They are executed locally via DuckDB; syntax adaptations are noted as comments in `src/analysis.py`. The full BigQuery SQL for each query is shown directly in the app — each sub-tab has a collapsible panel with the source code so the evaluator can read the query and the result side by side.
+
+> The table references in the `.sql` files use `` `project.dataset.orders_merged` `` as a placeholder. This would be replaced with the actual BigQuery project and dataset path in a production environment.
 
 ### Part A — Master Customer Table
 
@@ -298,7 +300,7 @@ As requested, here is how I used AI at each stage and the approximate time each 
 | Assignment 1 | Designed the cleaning strategy after manual data inspection; Claude wrote `src/cleaning.py` and `tests/test_cleaning.py` based on the issues I identified | 20 min |
 | Assignment 2 | SQL logic designed collaboratively; I defined the classification rules and business questions, Claude wrote the BigQuery `.sql` files and the DuckDB-adapted `src/analysis.py` | 30 min |
 | Assignment 3 | Written answers drafted by me, reviewed and sharpened with Claude | 20 min |
-| Streamlit app | Claude scaffolded the layout and chart code; I reviewed the output and directed adjustments to the visualisations and written interpretations | 25 min |
+| Streamlit app | Claude scaffolded the layout and chart code; I reviewed the output and directed adjustments to the visualisations, written interpretations, before/after data views, SQL expanders, and download button | 35 min |
 
 Claude was used as a coding assistant throughout, not as a decision-maker. Every business interpretation, assumption, and recommendation in this submission is my own.
 

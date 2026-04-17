@@ -4,6 +4,16 @@ Interactive solution for the Groupon Analytical Engineer case study, covering da
 
 > **Formal submission document:** [SUBMISSION.md](./SUBMISSION.md)
 
+The app has five tabs:
+
+| Tab | Contents |
+|-----|----------|
+| Assignment 1 · Data Cleaning | Issues found/fixed, before/after view of the 8 corrected country rows, charts, cleaned dataset with download button |
+| Assignment 2 · SQL Analysis | Results, charts, interpretations, and the full BigQuery SQL for each query in a collapsible panel |
+| Assignment 3 · Engineering Thinking | Written answers to all three questions |
+| Raw Data | Original source files side by side with null counts and data types |
+| SQL Playground | Free-text SQL editor running DuckDB against the cleaned dataset |
+
 ---
 
 ## Quick Start
@@ -118,6 +128,8 @@ Two CSV files share the same 15-column schema and together form one logical data
 
 **Assumption:** each city name is unambiguous within this dataset. Cross-referenced against existing rows with the same city and confirmed no conflicts.
 
+The app shows a before/after table with the exact 8 rows, the raw `NULL` value, and the inferred country code side by side.
+
 ### Items Kept (Expected Business Behaviour)
 
 - **120 orders with `gross_bookings_operational ≤ 0`** — all have `last_status = 'refunded'`. Non-positive booking values for refunds are correct; removing them would distort volume and profitability metrics.
@@ -148,7 +160,9 @@ Order statuses    : redeemed 729 | unredeemed 274 | refunded 120 | expired 119
 
 ## Assignment 2 – SQL Analysis
 
-All queries are written in **BigQuery standard SQL** (see `sql/`). They are executed locally via **DuckDB** through `src/analysis.py`, with minimal syntax adaptations noted inline.
+All queries are written in **BigQuery standard SQL** (see `sql/`). They are executed locally via **DuckDB** through `src/analysis.py`, with minimal syntax adaptations noted inline. The BigQuery SQL for each query is also visible directly in the app under a collapsible panel in each sub-tab.
+
+> **Note on table references:** The `.sql` files use `` `project.dataset.orders_merged` `` as a placeholder for the BigQuery table name. Replace it with your actual project and dataset when running in BigQuery.
 
 ### Part A – Master Customer Table
 
