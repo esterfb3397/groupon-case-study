@@ -2,6 +2,8 @@
 
 Interactive solution for the Groupon Analytical Engineer case study, covering data cleaning, SQL analysis, and data engineering thinking. Presented as a Streamlit app backed by DuckDB (BigQuery-compatible SQL) and pandas.
 
+> **Formal submission document:** [SUBMISSION.md](./SUBMISSION.md)
+
 ---
 
 ## Quick Start
