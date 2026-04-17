@@ -31,7 +31,7 @@ WITH order_with_gaps AS (
       PARTITION BY user_uuid
       ORDER BY operational_view_date, order_uuid
     ) AS order_seq
-  FROM `project.dataset.orders_merged`
+  FROM `project.dataset.orders_merged`  -- replace with your BigQuery table reference, e.g. `my_project.my_dataset.orders_merged`
 ),
 
 order_classified AS (

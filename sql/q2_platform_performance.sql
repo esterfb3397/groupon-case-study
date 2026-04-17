@@ -27,7 +27,7 @@ WITH order_classified AS (
     ROW_NUMBER() OVER (
       PARTITION BY user_uuid ORDER BY operational_view_date, order_uuid
     ) AS order_seq
-  FROM `project.dataset.orders_merged`
+  FROM `project.dataset.orders_merged`  -- replace with your BigQuery table reference, e.g. `my_project.my_dataset.orders_merged`
 ),
 
 -- ── Part 1: Customer-level metrics per platform ───────────────────────────────

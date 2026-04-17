@@ -9,8 +9,9 @@ import plotly.express as px
 import plotly.graph_objects as go
 from plotly.subplots import make_subplots
 import duckdb
+from pathlib import Path
 
-from src.cleaning import clean
+from src.cleaning import clean, CITY_COUNTRY_MAP
 from src.analysis import (
     master_customer_table,
     q1_last_6m_mix,
@@ -52,6 +53,25 @@ def run_sql(query: str, df_cleaned: pd.DataFrame) -> pd.DataFrame:
     con = duckdb.connect()
     con.register("orders", df_cleaned)
     return con.execute(query).df()
+
+
+@st.cache_data
+def before_after_country():
+    """Return the 8 rows that had null customer_country, showing raw vs cleaned values."""
+    raw = pd.concat([
+        pd.read_csv("data/raw/orders_historical.csv"),
+        pd.read_csv("data/raw/orders_2024_2025.csv"),
+    ], ignore_index=True)
+    mask = raw["customer_country"].isnull()
+    result = raw[mask][["order_uuid", "customer_city", "customer_country"]].copy()
+    result["customer_country"] = result["customer_country"].fillna("NULL")
+    result["after"] = result["customer_city"].map(CITY_COUNTRY_MAP)
+    result.columns = ["order_uuid", "customer_city", "before (raw)", "after (fixed)"]
+    return result
+
+
+def read_sql_file(name: str) -> str:
+    return (Path("sql") / name).read_text()
 
 
 df, report, mct, last6m, monthly, platform_df, yearly_df = load_all()
@@ -192,10 +212,28 @@ with tab1:
     )
     st.plotly_chart(fig_time, use_container_width=True)
 
-    # ── Cleaned data preview ──────────────────────────────────────────────────
+    # ── Before / after: the 8 fixed country rows ─────────────────────────────
     st.divider()
-    st.subheader("Cleaned Data Preview")
-    st.dataframe(df.head(50), use_container_width=True)
+    st.subheader("Before / After: country_null fix")
+    st.markdown(
+        "The 8 rows where `customer_country` was null, showing the raw value vs. "
+        "the value inferred from the city lookup."
+    )
+    st.dataframe(before_after_country(), hide_index=True, use_container_width=True)
+
+    # ── Cleaned data preview + download ──────────────────────────────────────
+    st.divider()
+    st.subheader("Cleaned Dataset")
+    col_prev, col_dl = st.columns([4, 1])
+    col_prev.caption(f"{len(df):,} rows · {len(df.columns)} columns · ready for analysis")
+    col_dl.download_button(
+        label="Download CSV",
+        data=df.to_csv(index=False).encode("utf-8"),
+        file_name="orders_merged.csv",
+        mime="text/csv",
+        use_container_width=True,
+    )
+    st.dataframe(df, use_container_width=True)
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -283,6 +321,10 @@ with tab2:
             use_container_width=True,
         )
 
+        st.divider()
+        with st.expander("BigQuery SQL — master_customer_table.sql"):
+            st.code(read_sql_file("master_customer_table.sql"), language="sql")
+
     # ── Q1 ────────────────────────────────────────────────────────────────────
     with sub_q1:
         st.subheader("Q1 – Customer Revenue Mix & Retention")
@@ -348,6 +390,9 @@ came from retained regulars**, 16.6% from reactivated customers, and just **0.1%
 - **Recommendation:** Treat the near-zero new activation rate as a red flag. Monitor cohort sizes
   monthly and set an activation-share floor (e.g. 10%) as an early warning metric.
         """)
+
+        with st.expander("BigQuery SQL — q1_revenue_mix.sql"):
+            st.code(read_sql_file("q1_revenue_mix.sql"), language="sql")
 
     # ── Q2 ────────────────────────────────────────────────────────────────────
     with sub_q2:
@@ -448,6 +493,9 @@ Before any channel strategy shift, the right questions to investigate are:
 If the gap is explained by these factors rather than inherent channel quality, there may still be
 a case for app investment — but the current aggregate data does not make it.
         """)
+
+        with st.expander("BigQuery SQL — q2_platform_performance.sql"):
+            st.code(read_sql_file("q2_platform_performance.sql"), language="sql")
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
