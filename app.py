@@ -130,7 +130,7 @@ with tab1:
         {
             "Issue": "Null `incentive_promo_code`",
             "Count": 863,
-            "Fix": "Standardised to empty string `\"\"` — null means no promo applied",
+            "Fix": "Standardised to empty string `\"\"` null means no promo applied",
             "Type": "Fixed",
         },
         {
@@ -148,13 +148,13 @@ with tab1:
         {
             "Issue": "`gross_bookings ≤ 0` (120 rows)",
             "Count": 120,
-            "Fix": "All are `last_status = 'refunded'` — valid business data, kept with documentation",
+            "Fix": "All are `last_status = 'refunded'` valid business data, kept with documentation",
             "Type": "Kept (expected)",
         },
         {
             "Issue": "Platform value `touch`",
             "Count": 152,
-            "Fix": "Mobile web browser — kept as-is; grouped with `web` only in platform analysis",
+            "Fix": "Mobile web browser kept as-is; grouped with `web` only in platform analysis",
             "Type": "Kept (expected)",
         },
     ])
@@ -322,7 +322,7 @@ with tab2:
         )
 
         st.divider()
-        with st.expander("BigQuery SQL — master_customer_table.sql"):
+        with st.expander("BigQuery SQL master_customer_table.sql"):
             st.code(read_sql_file("master_customer_table.sql"), language="sql")
 
     # ── Q1 ────────────────────────────────────────────────────────────────────
@@ -376,13 +376,13 @@ with tab2:
         st.divider()
         st.subheader("Interpretation")
         st.markdown("""
-**Last 6 months:** The business is overwhelmingly driven by existing customers — **83.3% of gross bookings
+**Last 6 months:** The business is overwhelmingly driven by existing customers **83.3% of gross bookings
 came from retained regulars**, 16.6% from reactivated customers, and just **0.1% from new activations**.
 
 **What this means for the business:**
 - The acquisition pipeline is essentially empty in the most recent window. If retained regulars churn,
   there is no incoming cohort to replace them.
-- Reactivations at 17% are a positive signal — lapsed customers are returning — but this cannot
+- Reactivations at 17% are a positive signal lapsed customers are returning but this cannot
   substitute for sustained new customer growth.
 - The mix has been structurally similar across history (~10–25% new/reactivated), but 2025 shows
   a stark drop in new activations that warrants investigation: is it a seasonal effect, a reduction
@@ -391,7 +391,7 @@ came from retained regulars**, 16.6% from reactivated customers, and just **0.1%
   monthly and set an activation-share floor (e.g. 10%) as an early warning metric.
         """)
 
-        with st.expander("BigQuery SQL — q1_revenue_mix.sql"):
+        with st.expander("BigQuery SQL q1_revenue_mix.sql"):
             st.code(read_sql_file("q1_revenue_mix.sql"), language="sql")
 
     # ── Q2 ────────────────────────────────────────────────────────────────────
@@ -483,7 +483,7 @@ and **20% more gross profit per customer** ($223 vs $187).
 from 39% in 2021 to 24% in 2025 (though 2025 only covers 2 months and may not be representative).
 There was no sustained upward trend at any point in the dataset.
 
-**Recommendation — do not blindly prioritise app acquisition.**
+**Recommendation do not blindly prioritise app acquisition.**
 The data does not support reallocating acquisition spend toward the app channel:
 web customers generate more revenue and profit per head, and the app's bookings share is declining.
 Before any channel strategy shift, the right questions to investigate are:
@@ -491,10 +491,10 @@ Before any channel strategy shift, the right questions to investigate are:
 - Is it driven by **geography** (high-value markets predominantly using web)?
 - Does the gap persist when controlling for **customer tenure** (newer vs. older customers)?
 If the gap is explained by these factors rather than inherent channel quality, there may still be
-a case for app investment — but the current aggregate data does not make it.
+a case for app investment but the current aggregate data does not make it.
         """)
 
-        with st.expander("BigQuery SQL — q2_platform_performance.sql"):
+        with st.expander("BigQuery SQL q2_platform_performance.sql"):
             st.code(read_sql_file("q2_platform_performance.sql"), language="sql")
 
 
@@ -504,7 +504,7 @@ a case for app investment — but the current aggregate data does not make it.
 
 with tab3:
     st.header("Data Quality & Engineering Thinking")
-    st.markdown("Written answers — no SQL required. Max half a page per question.")
+    st.markdown("Written answers no SQL required. Max half a page per question.")
 
     st.divider()
 
@@ -512,7 +512,7 @@ with tab3:
     st.subheader("Q1 – Financial Column Conventions")
     st.markdown("""
 The `_operational` suffix indicates that financial values are expressed in the **local transaction
-currency** — the currency in which the customer was charged. This is standard practice in
+currency** the currency in which the customer was charged. This is standard practice in
 multi-currency e-commerce: storing values at their local source preserves the original
 transaction truth before any FX conversion introduces rounding or rate variability.
 
@@ -521,11 +521,11 @@ transaction truth before any FX conversion introduces rounding or rate variabili
 value_usd = value_operational × fx_rate_loc_to_usd_fxn
 ```
 
-**The analytical error from aggregating without conversion is currency mixing** — summing euros,
+**The analytical error from aggregating without conversion is currency mixing** summing euros,
 pounds, zlotys, and dollars as if they were the same unit. This produces a number that is neither
 in USD nor in any meaningful composite currency. For example, €100 and $100 would both contribute
 "100" to the sum, but their USD equivalents differ by ~8% at current rates. Revenue totals, cohort
-averages, and trend lines built on such aggregates would all be wrong — and the error would scale
+averages, and trend lines built on such aggregates would all be wrong and the error would scale
 with the proportion of non-USD transactions, making it harder to detect in markets with low FX
 exposure but catastrophic in datasets with heavy EUR or GBP volume.
     """)
@@ -536,7 +536,7 @@ exposure but catastrophic in datasets with heavy EUR or GBP volume.
     st.subheader("Q2 – Inflated Customer Count (~15% higher than expected)")
     st.markdown("Walk through the three most likely root causes and the validation query for each.")
 
-    with st.expander("Root cause 1 — Duplicate `user_uuid` values (identity stitching / migration fan-out)", expanded=True):
+    with st.expander("Root cause 1 Duplicate `user_uuid` values (identity stitching / migration fan-out)", expanded=True):
         st.markdown("""
 A single real customer may have been assigned multiple UUIDs if records were migrated from
 different systems, or if a pipeline JOIN produced fan-out (e.g. a many-to-many relationship
@@ -557,11 +557,11 @@ GROUP BY customer_city, customer_country
 HAVING COUNT(DISTINCT user_uuid) > 1
 ORDER BY uuid_count DESC;
 ```
-Also check whether the 15% excess maps to a specific acquisition cohort or country — that
+Also check whether the 15% excess maps to a specific acquisition cohort or country that
 would point to a specific migration event.
         """)
 
-    with st.expander("Root cause 2 — Model grain is not 1 row per customer (missing GROUP BY or DISTINCT)"):
+    with st.expander("Root cause 2 Model grain is not 1 row per customer (missing GROUP BY or DISTINCT)"):
         st.markdown("""
 If the aggregation CTE was accidentally built at order level instead of customer level
 (e.g. a `GROUP BY` was dropped, or a subquery returned multiple rows per user),
@@ -578,10 +578,10 @@ HAVING COUNT(*) > 1;
 ```
         """)
 
-    with st.expander("Root cause 3 — Different customer definition vs. the previous report"):
+    with st.expander("Root cause 3 Different customer definition vs. the previous report"):
         st.markdown("""
 The baseline report may have filtered out customers whose only interactions were
-refunded, expired, or unredeemed — effectively counting only customers who completed
+refunded, expired, or unredeemed effectively counting only customers who completed
 at least one redemption. The new model counts all `user_uuid` values regardless of status.
 
 **Validation:**
@@ -594,7 +594,7 @@ SELECT
     / COUNT(DISTINCT user_uuid), 1
   )                                                                       AS redemption_pct
 FROM orders_merged;
--- If redemption_pct is ~87%, removing non-redeemers would shrink the count by ~13% — close to the 15% gap
+-- If redemption_pct is ~87%, removing non-redeemers would shrink the count by ~13% close to the 15% gap
 ```
         """)
 
@@ -647,7 +647,7 @@ Any discrepancy signals a JOIN fan-out, missing rows, or double-counting.
             """
 Expose the `order_classified` CTE as its own view or intermediate table.
 When an analyst questions why a customer is classified as "reactivated", they can trace it back
-to the specific order UUID and gap — rather than reverse-engineering a window function.
+to the specific order UUID and gap rather than reverse-engineering a window function.
 
 Also: add a `classification_rule_version` column so that if the definition of reactivation changes
 (e.g. from 365 to 180 days), historical classifications can be recomputed and compared.
@@ -663,7 +663,7 @@ Document directly on the table:
 - **Owner**: team/person responsible
 
 If `orders_merged` stops updating, consumers of `master_customer_table` should be alerted
-via a freshness check — not silently served stale data. In dbt this is a `freshness` block;
+via a freshness check not silently served stale data. In dbt this is a `freshness` block;
 in BigQuery it can be enforced via scheduled query alerts or a monitoring table.
             """,
         ),
@@ -681,7 +681,7 @@ in BigQuery it can be enforced via scheduled query alerts or a monitoring table.
 with tab4:
     st.header("Raw Source Data")
     st.markdown(
-        "Original files as received — unmodified. "
+        "Original files as received unmodified. "
         "Use this tab to compare against the cleaned dataset in Assignment 1."
     )
 
@@ -733,12 +733,12 @@ with tab5:
     st.header("SQL Playground")
     st.markdown(
         "Write any SQL against the **cleaned dataset** (`orders` table). "
-        "Uses DuckDB — BigQuery-compatible syntax. "
+        "Uses DuckDB BigQuery-compatible syntax. "
         "Results appear below the query editor."
     )
 
     st.info(
-        "**Available table:** `orders` — 1,242 rows, 19 columns (cleaned + USD columns added).\n\n"
+        "**Available table:** `orders` 1,242 rows, 19 columns (cleaned + USD columns added).\n\n"
         "**Columns:** `operational_view_date`, `user_uuid`, `customer_city`, `customer_country`, "
         "`order_uuid`, `parent_order_uuid`, `platform`, `fx_rate_loc_to_usd_fxn`, "
         "`list_price_operational`, `deal_discount_operational`, `gross_bookings_operational`, "

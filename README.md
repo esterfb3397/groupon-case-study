@@ -109,7 +109,7 @@ Two CSV files share the same 15-column schema and together form one logical data
 | Issue | Count | Fix Applied |
 |-------|-------|-------------|
 | Null `customer_country` | 8 rows | Filled via deterministic city → country lookup (see table below) |
-| Null `incentive_promo_code` | 863 rows | Standardised to `""` — null means no promo was used |
+| Null `incentive_promo_code` | 863 rows | Standardised to `""` null means no promo was used |
 | `operational_view_date` as string | all rows | Parsed to `datetime.date` |
 | No USD equivalents in raw data | — | Derived `*_usd` columns: `value_usd = value_operational × fx_rate` |
 
@@ -132,8 +132,8 @@ The app shows a before/after table with the exact 8 rows, the raw `NULL` value, 
 
 ### Items Kept (Expected Business Behaviour)
 
-- **120 orders with `gross_bookings_operational ≤ 0`** — all have `last_status = 'refunded'`. Non-positive booking values for refunds are correct; removing them would distort volume and profitability metrics.
-- **Platform value `touch`** — represents a mobile web browser session. Kept as a distinct value in the cleaned dataset; grouped with `web` only for platform-comparison analysis in Assignment 2.
+- **120 orders with `gross_bookings_operational ≤ 0`** all have `last_status = 'refunded'`. Non-positive booking values for refunds are correct; removing them would distort volume and profitability metrics.
+- **Platform value `touch`** represents a mobile web browser session. Kept as a distinct value in the cleaned dataset; grouped with `web` only for platform-comparison analysis in Assignment 2.
 
 ### Derived Columns Added
 
@@ -168,9 +168,9 @@ All queries are written in **BigQuery standard SQL** (see `sql/`). They are exec
 
 Customer-grain table built with window functions to classify every order as:
 
-- **`new`** — first order ever for that `user_uuid`
-- **`reactivated`** — gap from previous order > 365 days
-- **`retained`** — all other returning orders
+- **`new`** first order ever for that `user_uuid`
+- **`reactivated`** gap from previous order > 365 days
+- **`retained`** all other returning orders
 
 **Output columns (266 rows, one per customer):**
 
@@ -204,9 +204,9 @@ Customer-grain table built with window functions to classify every order as:
 | Reactivated | $2,754 | 16.6% |
 | New (activations) | $16 | **0.1%** |
 
-**Interpretation:** The business is almost entirely dependent on its existing customer base. New customer acquisition is near zero in the most recent period — just 0.1% of bookings. Reactivations at 17% indicate that lapsed customers are returning, which is healthy, but the complete absence of new activations is a risk signal. If retained regulars churn, there is no acquisition pipeline to replace them.
+**Interpretation:** The business is almost entirely dependent on its existing customer base. New customer acquisition is near zero in the most recent period just 0.1% of bookings. Reactivations at 17% indicate that lapsed customers are returning, which is healthy, but the complete absence of new activations is a risk signal. If retained regulars churn, there is no acquisition pipeline to replace them.
 
-**Historical mix shift:** The new/reactivated share has fluctuated between 10–25% in most months, but 2025 data shows a sharp drop in new activations. This trend warrants investigation — it could reflect seasonality, a change in acquisition spend, or data incompleteness for 2025.
+**Historical mix shift:** The new/reactivated share has fluctuated between 10–25% in most months, but 2025 data shows a sharp drop in new activations. This trend warrants investigation it could reflect seasonality, a change in acquisition spend, or data incompleteness for 2025.
 
 ---
 
@@ -232,7 +232,7 @@ Customer-grain table built with window functions to classify every order as:
 | 2024 | 40.2% | 59.8% |
 | 2025 | 23.9% | 76.1% |
 
-**Interpretation:** Web customers consistently outperform app customers on every financial metric — 11% higher AOV, 6% more orders per customer, and 20% more gross profit per customer. The app's share of gross bookings has been unstable, with 2025 showing a significant drop (though 2025 has only 2 months of data). Given the current performance gap, prioritising app acquisition over web would not be justified by the data alone. The recommendation would be to investigate *why* web customers are more valuable before shifting acquisition spend — it may reflect product mix, geography, or customer demographics rather than the channel itself.
+**Interpretation:** Web customers consistently outperform app customers on every financial metric 11% higher AOV, 6% more orders per customer, and 20% more gross profit per customer. The app's share of gross bookings has been unstable, with 2025 showing a significant drop (though 2025 has only 2 months of data). Given the current performance gap, prioritising app acquisition over web would not be justified by the data alone. The recommendation would be to investigate *why* web customers are more valuable before shifting acquisition spend it may reflect product mix, geography, or customer demographics rather than the channel itself.
 
 ---
 
@@ -247,7 +247,7 @@ To convert to USD for cross-country comparison:
 value_usd = value_operational × fx_rate_loc_to_usd_fxn
 ```
 
-The analytical error introduced by aggregating local-currency figures across countries without conversion is **currency mixing** — summing euros, pounds, zlotys, and dollars as if they were all the same unit. This produces a nonsensical total that is neither in USD nor in any meaningful composite unit. For example, €100 and $100 would both contribute "100" to the sum, but their USD equivalents differ. This would distort any revenue totals, averages, or trend comparisons built on top of such aggregates.
+The analytical error introduced by aggregating local-currency figures across countries without conversion is **currency mixing** summing euros, pounds, zlotys, and dollars as if they were all the same unit. This produces a nonsensical total that is neither in USD nor in any meaningful composite unit. For example, €100 and $100 would both contribute "100" to the sum, but their USD equivalents differ. This would distort any revenue totals, averages, or trend comparisons built on top of such aggregates.
 
 ---
 
@@ -284,7 +284,7 @@ HAVING COUNT(*) > 1;
 
 **3. The baseline report used a different customer definition (e.g., excluded refunded-only customers)**
 
-The previous report may have filtered out customers whose only orders were refunded, expired, or unredeemed — effectively counting only "active" buyers.
+The previous report may have filtered out customers whose only orders were refunded, expired, or unredeemed effectively counting only "active" buyers.
 
 ```sql
 -- Count customers who have at least one redeemed order vs. total
@@ -323,10 +323,10 @@ SELECT
 ```
 
 **4. Documented classification logic with an audit column**
-Add an `order_type_sample` column (e.g., one example order UUID per type) or expose the `order_classified` CTE as its own table/view. When an analyst questions why a customer is classified as "reactivated", they can trace it back to the specific order and gap — rather than reverse-engineering the window function.
+Add an `order_type_sample` column (e.g., one example order UUID per type) or expose the `order_classified` CTE as its own table/view. When an analyst questions why a customer is classified as "reactivated", they can trace it back to the specific order and gap rather than reverse-engineering the window function.
 
 **5. A freshness SLA and lineage annotation**
-Document in the table description: which source tables it reads from, what schedule it runs on, and what the maximum acceptable data lag is. If `orders_merged` stops updating, downstream consumers of `master_customer_table` should be alerted — not silently served stale data.
+Document in the table description: which source tables it reads from, what schedule it runs on, and what the maximum acceptable data lag is. If `orders_merged` stops updating, downstream consumers of `master_customer_table` should be alerted not silently served stale data.
 
 ---
 
