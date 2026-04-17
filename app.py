@@ -8,6 +8,7 @@ import pandas as pd
 import plotly.express as px
 import plotly.graph_objects as go
 from plotly.subplots import make_subplots
+import duckdb
 
 from src.cleaning import clean
 from src.analysis import (
@@ -39,7 +40,22 @@ def load_all():
     return df, report, mct, last6m, monthly, platform, yearly
 
 
+@st.cache_data
+def load_raw():
+    hist = pd.read_csv("data/raw/orders_historical.csv")
+    recent = pd.read_csv("data/raw/orders_2024_2025.csv")
+    return hist, recent
+
+
+def run_sql(query: str, df_cleaned: pd.DataFrame) -> pd.DataFrame:
+    """Execute a SQL query against the cleaned dataset using DuckDB."""
+    con = duckdb.connect()
+    con.register("orders", df_cleaned)
+    return con.execute(query).df()
+
+
 df, report, mct, last6m, monthly, platform_df, yearly_df = load_all()
+hist_raw, recent_raw = load_raw()
 
 # ── Header ────────────────────────────────────────────────────────────────────
 
@@ -50,10 +66,12 @@ st.divider()
 
 # ── Tabs ──────────────────────────────────────────────────────────────────────
 
-tab1, tab2, tab3 = st.tabs([
+tab1, tab2, tab3, tab4, tab5 = st.tabs([
     "Assignment 1 · Data Cleaning",
     "Assignment 2 · SQL Analysis",
     "Assignment 3 · Engineering Thinking",
+    "Raw Data",
+    "SQL Playground",
 ])
 
 
@@ -606,3 +624,113 @@ in BigQuery it can be enforced via scheduled query alerts or a monitoring table.
     for title, body in items:
         with st.expander(title, expanded=False):
             st.markdown(body)
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# RAW DATA
+# ═══════════════════════════════════════════════════════════════════════════════
+
+with tab4:
+    st.header("Raw Source Data")
+    st.markdown(
+        "Original files as received — unmodified. "
+        "Use this tab to compare against the cleaned dataset in Assignment 1."
+    )
+
+    c1, c2, c3 = st.columns(3)
+    c1.metric("orders_historical.csv", f"{len(hist_raw):,} rows", "Jan 2021 – Jun 2023")
+    c2.metric("orders_2024_2025.csv", f"{len(recent_raw):,} rows", "Jul 2023 – Feb 2025")
+    c3.metric("Combined", f"{len(hist_raw) + len(recent_raw):,} rows", "before cleaning")
+
+    st.divider()
+
+    raw_tab1, raw_tab2 = st.tabs(["orders_historical.csv", "orders_2024_2025.csv"])
+
+    with raw_tab1:
+        st.caption(f"{len(hist_raw):,} rows · {len(hist_raw.columns)} columns")
+        col_l, col_r = st.columns(2)
+        with col_l:
+            st.markdown("**Null counts**")
+            nulls = hist_raw.isnull().sum().reset_index()
+            nulls.columns = ["Column", "Nulls"]
+            st.dataframe(nulls[nulls["Nulls"] > 0], hide_index=True, use_container_width=True)
+        with col_r:
+            st.markdown("**Data types**")
+            dtypes = hist_raw.dtypes.reset_index()
+            dtypes.columns = ["Column", "Type"]
+            st.dataframe(dtypes, hide_index=True, use_container_width=True)
+        st.dataframe(hist_raw, use_container_width=True)
+
+    with raw_tab2:
+        st.caption(f"{len(recent_raw):,} rows · {len(recent_raw.columns)} columns")
+        col_l, col_r = st.columns(2)
+        with col_l:
+            st.markdown("**Null counts**")
+            nulls2 = recent_raw.isnull().sum().reset_index()
+            nulls2.columns = ["Column", "Nulls"]
+            st.dataframe(nulls2[nulls2["Nulls"] > 0], hide_index=True, use_container_width=True)
+        with col_r:
+            st.markdown("**Data types**")
+            dtypes2 = recent_raw.dtypes.reset_index()
+            dtypes2.columns = ["Column", "Type"]
+            st.dataframe(dtypes2, hide_index=True, use_container_width=True)
+        st.dataframe(recent_raw, use_container_width=True)
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# SQL PLAYGROUND
+# ═══════════════════════════════════════════════════════════════════════════════
+
+with tab5:
+    st.header("SQL Playground")
+    st.markdown(
+        "Write any SQL against the **cleaned dataset** (`orders` table). "
+        "Uses DuckDB — BigQuery-compatible syntax. "
+        "Results appear below the query editor."
+    )
+
+    st.info(
+        "**Available table:** `orders` — 1,242 rows, 19 columns (cleaned + USD columns added).\n\n"
+        "**Columns:** `operational_view_date`, `user_uuid`, `customer_city`, `customer_country`, "
+        "`order_uuid`, `parent_order_uuid`, `platform`, `fx_rate_loc_to_usd_fxn`, "
+        "`list_price_operational`, `deal_discount_operational`, `gross_bookings_operational`, "
+        "`margin_1_operational`, `vfm_operational`, `incentive_promo_code`, `last_status`, "
+        "`gross_bookings_usd`, `margin_1_usd`, `vfm_usd`, `gross_profit_usd`",
+        icon="ℹ️",
+    )
+
+    # ── Example queries ───────────────────────────────────────────────────────
+    examples = {
+        "— pick an example —": "",
+        "Orders by country": "SELECT customer_country, COUNT(*) AS orders, ROUND(SUM(gross_bookings_usd), 2) AS gross_bookings_usd\nFROM orders\nGROUP BY customer_country\nORDER BY gross_bookings_usd DESC",
+        "Top 10 customers by revenue": "SELECT user_uuid, COUNT(*) AS orders, ROUND(SUM(gross_bookings_usd), 2) AS total_usd\nFROM orders\nGROUP BY user_uuid\nORDER BY total_usd DESC\nLIMIT 10",
+        "Monthly revenue trend": "SELECT DATE_TRUNC('month', operational_view_date) AS month,\n       COUNT(*) AS orders,\n       ROUND(SUM(gross_bookings_usd), 2) AS gross_bookings_usd\nFROM orders\nGROUP BY month\nORDER BY month",
+        "Promo vs non-promo AOV": "SELECT\n  CASE WHEN incentive_promo_code = '' THEN 'No promo' ELSE 'Promo' END AS promo,\n  COUNT(*) AS orders,\n  ROUND(AVG(gross_bookings_usd), 2) AS avg_order_value_usd\nFROM orders\nGROUP BY promo",
+        "Refunded orders detail": "SELECT order_uuid, user_uuid, customer_country, operational_view_date,\n       gross_bookings_usd, last_status\nFROM orders\nWHERE last_status = 'refunded'\nORDER BY operational_view_date DESC\nLIMIT 20",
+        "Customer order classification": "WITH gaps AS (\n  SELECT user_uuid, order_uuid, operational_view_date,\n         LAG(operational_view_date) OVER (PARTITION BY user_uuid ORDER BY operational_view_date) AS prev_date,\n         ROW_NUMBER() OVER (PARTITION BY user_uuid ORDER BY operational_view_date) AS seq\n  FROM orders\n)\nSELECT *,\n  CASE\n    WHEN seq = 1 THEN 'new'\n    WHEN DATEDIFF('day', prev_date, operational_view_date) > 365 THEN 'reactivated'\n    ELSE 'retained'\n  END AS order_type\nFROM gaps\nORDER BY user_uuid, operational_view_date",
+    }
+
+    selected = st.selectbox("Load an example query", options=list(examples.keys()))
+
+    default_sql = examples[selected] if selected != "— pick an example —" else "SELECT *\nFROM orders\nLIMIT 10"
+
+    query = st.text_area(
+        "SQL query",
+        value=default_sql,
+        height=200,
+        placeholder="SELECT * FROM orders LIMIT 10",
+    )
+
+    col_run, col_info = st.columns([1, 5])
+    run = col_run.button("Run query", type="primary", use_container_width=True)
+
+    if run:
+        if not query.strip():
+            st.warning("Write a query first.")
+        else:
+            try:
+                result = run_sql(query, df)
+                col_info.caption(f"{len(result):,} rows · {len(result.columns)} columns returned")
+                st.dataframe(result, use_container_width=True)
+            except Exception as e:
+                st.error(f"Query error: {e}")

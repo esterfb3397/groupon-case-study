@@ -31,3 +31,5 @@ Thumbs.db
 # Case study source files (keep local only)
 *.docx
 /orders_*.csv
+
+.pytest_cache/
